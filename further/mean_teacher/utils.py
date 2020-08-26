@@ -11,6 +11,7 @@ import sys
 import numpy as np
 import scipy.misc
 import torch.nn as nn
+import imageio
 
 def initialize_weights(net): # # #
     for m in net.modules():
@@ -29,7 +30,7 @@ def save_images(images, size, image_path): # # #
 
 def imsave(images, size, path): # # #
     image = np.squeeze(merge(images, size))
-    return scipy.misc.imsave(path, image)
+    return imageio.imsave(path, image)
 
 def merge(images, size): # # #
     h, w = images.shape[1], images.shape[2]
@@ -137,7 +138,7 @@ class AverageMeter:
 
 def export(fn):
     mod = sys.modules[fn.__module__]
-    if hasattr(mod, '__all__'):  # 检查是否具有某个属性
+    if hasattr(mod, '__all__'):
         mod.__all__.append(fn.__name__)
     else:
         mod.__all__ = [fn.__name__]

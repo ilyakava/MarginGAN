@@ -41,7 +41,7 @@ def imagenet():
 @export
 def cifar10():
 
-    train_transformation = data.TransformTwice(transforms.Compose([  # # 为什么弄个twice
+    train_transformation = data.TransformTwice(transforms.Compose([
         data.RandomTranslateWithReflect(4),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
@@ -56,7 +56,7 @@ def cifar10():
     return {
         'train_transformation': train_transformation,
         'eval_transformation': eval_transformation,
-        'datadir': 'data-local/images/cifar/cifar10/by-image',
+        'datadir': '/vulcanscratch/ilyak/data/margingan/cifar10',
         'num_classes': 10
     }
 

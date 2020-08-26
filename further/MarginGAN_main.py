@@ -11,12 +11,12 @@
 
 import re
 import argparse
+from datetime import datetime
 import os
 import shutil
 import time
 import math
 import logging
-
 
 import numpy as np
 import torch
@@ -57,7 +57,7 @@ class generator(nn.Module):  # # #
             nn.ReLU(),
         )
         self.deconv = nn.Sequential(
-            nn.ConvTranspose2d(128, 64, 4, 2, 1),   # 4,2,1可以将大小扩大一倍
+            nn.ConvTranspose2d(128, 64, 4, 2, 1),
             nn.BatchNorm2d(64),
             nn.ReLU(),
             nn.ConvTranspose2d(64, self.output_dim, 4, 2, 1),
@@ -83,7 +83,7 @@ class discriminator(nn.Module):  # # #
         self.input_size = input_size
 
         self.conv = nn.Sequential(
-            nn.Conv2d(self.input_dim, 64, 4, 2, 1), # 4，2，1缩小1倍
+            nn.Conv2d(self.input_dim, 64, 4, 2, 1),
             nn.LeakyReLU(0.2),
             nn.Conv2d(64, 128, 4, 2, 1),
             nn.BatchNorm2d(128),
@@ -115,6 +115,16 @@ global_step = 0
 def main(context):
     global global_step
     global best_prec1
+    
+    # save logs to file, not as deeply nested as results
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    logging_dir = args.results_dir
+    if not os.path.isdir(logging_dir):
+        os.makedirs(logging_dir)
+    fh = logging.FileHandler(logging_dir + '/pytorch_{date:%Y-%m-%d_%H:%M:%S}.log'.format(date=datetime.now()))
+    fh.setLevel(logging.INFO)
+    fh.setFormatter(formatter)
+    LOG.addHandler(fh)
 
     checkpoint_path = context.transient_dir
     training_log = context.create_train_log("training")
@@ -122,6 +132,9 @@ def main(context):
     ema_validation_log = context.create_train_log("ema_validation")
 
     dataset_config = datasets.__dict__[args.dataset]()
+    # override data directory if available
+    if args.datadir is not None:
+        dataset_config['datadir'] = args.datadir
     num_classes = dataset_config.pop('num_classes')
     train_loader, eval_loader = create_data_loaders(**dataset_config, args=args)
 
@@ -147,10 +160,10 @@ def main(context):
     G = generator(input_dim=args.z_dim, output_dim=3, input_size=32)
     D = discriminator(input_dim=3, output_dim=1, input_size=32)
 
-    model.cuda()
-    ema_model.cuda()
-    G.cuda()
-    D.cuda()
+    model = nn.DataParallel(model).cuda()
+    ema_model = nn.DataParallel(ema_model).cuda()
+    G = nn.DataParallel(G).cuda()
+    D = nn.DataParallel(D).cuda()
 
     LOG.info(parameters_string(model))
 
@@ -204,6 +217,10 @@ def main(context):
         # train for one epoch
         train(train_loader, model, ema_model, optimizer, G, D, G_optimizer, D_optimizer, epoch, training_log, BCEloss)
         LOG.info("--- training epoch in %s seconds ---" % (time.time() - start_time))
+        
+        LOG.info("Saving images")
+        with torch.no_grad():
+            visualize_results(G, (epoch + 1), basepath=context.result_dir)
 
         if args.evaluation_epochs and (epoch + 1) % args.evaluation_epochs == 0:
             start_time = time.time()
@@ -312,7 +329,7 @@ def train(train_loader, model, ema_model, optimizer, G, D, G_optimizer, D_optimi
         target_var = torch.autograd.Variable(target.cuda())
 
         minibatch_size = len(target_var)
-        labeled_minibatch_size = target_var.data.ne(NO_LABEL).sum()
+        labeled_minibatch_size = target_var.data.ne(NO_LABEL).sum().type(torch.float)
         assert labeled_minibatch_size > 0
         meters.update('labeled_minibatch_size', labeled_minibatch_size)
 
@@ -458,14 +475,12 @@ def train(train_loader, model, ema_model, optimizer, G, D, G_optimizer, D_optimi
                       D_loss.item(),
                       G_loss.item()))
 
-    with torch.no_grad():
-        visualize_results(G, (epoch + 1))
 
 
 
-def visualize_results(G, epoch):
+def visualize_results(G, epoch, basepath=''):
     G.eval()
-    generated_images_dir = 'generated_images/' + args.dataset
+    generated_images_dir = os.path.join(basepath, 'generated_images', args.dataset)
     if not os.path.exists(generated_images_dir):
         os.makedirs(generated_images_dir)
 
@@ -503,7 +518,7 @@ def validate(eval_loader, model, log, global_step, epoch):
         target_var = torch.autograd.Variable(target.cuda(), volatile=True)
 
         minibatch_size = len(target_var)
-        labeled_minibatch_size = target_var.data.ne(NO_LABEL).sum()
+        labeled_minibatch_size = target_var.data.ne(NO_LABEL).sum().type(torch.float)
         assert labeled_minibatch_size > 0
         meters.update('labeled_minibatch_size', labeled_minibatch_size)
 
@@ -596,4 +611,4 @@ def accuracy(output, target, topk=(1,)):
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)  # #
     args = cli.parse_commandline_args()  # #
-    main(RunContext(__file__, 0))
+    main(RunContext(__file__, 0, basepath=args.results_dir))

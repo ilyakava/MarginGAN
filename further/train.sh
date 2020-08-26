@@ -1,0 +1,22 @@
+python MarginGAN_main.py \
+    --dataset cifar10 \
+    --train-subdir train+val \
+    --eval-subdir test \
+    --batch-size 128 \
+    --labeled-batch-size 31 \
+    --arch cifar_shakeshake26 \
+    --consistency-type mse \
+    --consistency-rampup 5 \
+    --consistency 100.0 \
+    --logit-distance-cost 0.01 \
+    --weight-decay 2e-4 \
+    --lr-rampup 0 \
+    --lr 0.05 \
+    --nesterov True \
+    --labels data-local/labels/cifar10/1000_balanced_labels/00.txt  \
+    --epochs 180 \
+    --lr-rampdown-epochs 210 \
+    --ema-decay 0.97 \
+    --generated-batch-size 32 \
+    --datadir /vulcanscratch/ilyak/data/margingan/cifar10 \
+    --results-dir /vulcanscratch/ilyak/experiments/MarginGAN

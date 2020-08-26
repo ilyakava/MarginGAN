@@ -90,6 +90,10 @@ def create_parser():
                         help='evaluate model on evaluation set')
     parser.add_argument('--pretrained', dest='pretrained', action='store_true',
                         help='use pre-trained model')
+    parser.add_argument('--results-dir', default='.', type=str, metavar='PATH',
+                        help='path to save checkpoints without trailing slash (default: .)')
+    parser.add_argument('--datadir', default=None, type=str, metavar='PATH',
+                        help='override path to read data from (default: None)')
     return parser
 
 

@@ -1,6 +1,20 @@
 # MarginGAN
 This repository is the implementation of the paper "MarginGAN: Adversarial Training in Semi-Supervised Learning".
 
+## Results on CIFAR 1k labels total ("further" experiment)
+
+On 4x1080s, Runs 1 epoch per 4.33 mins. Finishes 180 epoch (91k itr) in 13 hours.
+
+Paper reports 10.39 +/- 0.43 error rate, and this is achieved by the ema model:
+
+![Accuracy](further/images/performance.png)
+
+The generator is clearly mode collapsed throughout training however:
+
+![Images](further/images/montage.jpeg)
+
+## Experiments
+
 1."preliminary" is the implementation of **Preliminary Experiment on MNIST** of the paper. Thank the authors of [pytorch-generative-model-collections](https://github.com/znxlwm/pytorch-generative-model-collections) and [examples of pytorch](https://github.com/pytorch/examples/blob/master/mnist/main.py), our code is widely adapted from their repositories.
 
 To train the network, an example is as follows:
@@ -47,3 +61,59 @@ python MarginGAN_main.py \
     --ema-decay 0.97 \
     --generated-batch-size 32
 ```
+
+## Installation
+
+run
+
+```
+conda env create -f py3p5torch0p4p1.yml
+conda activate py3p5torch0p4p1
+```
+
+Works on multiple gpus with cuda/9.2.148, cudnn/v7.6.5, python 3.5, pytorch 0.4.1.
+
+## Instructions for the experiment "further"
+
+### Create data in a custom directory
+
+```
+cd further/data-local/bin
+
+python unpack_cifar10.py /scratch0/ilya/locDoc/data/margingan /scratch0/ilya/locDoc/data/margingan/cifar10
+
+cd /scratch0/ilya/locDoc/data/margingan/cifar10
+
+mkdir -p train/airplane
+mkdir -p train/automobile
+mkdir -p train/bird
+mkdir -p train/cat
+mkdir -p train/deer
+mkdir -p train/dog
+mkdir -p train/frog
+mkdir -p train/horse
+mkdir -p train/ship
+mkdir -p train/truck
+
+mkdir -p val/airplane
+mkdir -p val/automobile
+mkdir -p val/bird
+mkdir -p val/cat
+mkdir -p val/deer
+mkdir -p val/dog
+mkdir -p val/frog
+mkdir -p val/horse
+mkdir -p val/ship
+mkdir -p val/truck
+
+sh cp_cifar10_train.sh
+sh cp_cifar10_val.sh
+```
+
+### how to run
+
+`cd further` and run `sh train.sh` for the 1k labels total experiment.
+
+Exclude the `--datadir` and `--results-dir` to load data and save results inside this repository, or modify them to use custom directories.
+
+Monitor with: `grep "* Prec@1" /vulcanscratch/ilyak/experiments/MarginGAN/pytorch_2020-08-25_16:03:18.log`, note that these precisions alternate between evaluations using the primary and ema model.
