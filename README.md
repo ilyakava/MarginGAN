@@ -4,14 +4,21 @@ This repository is the implementation of the paper "MarginGAN: Adversarial Train
 ## Results on CIFAR 1k labels total ("further" experiment)
 
 On 4x1080s, Runs 1 epoch per 4.33 mins. Finishes 180 epoch (91k itr) in 13 hours.
+On 4x1080s, the baseline (skips optimizing terms for D and G loss) runs 1 epoch per 3 mins. Finishes 180 epoch (91k itr) in 9 hours.
 
-Paper reports 10.39 +/- 0.43 error rate, and this is achieved by the ema model:
+Paper reports 10.39 +/- 0.43 error rate. This is achieved by the ema model of both MarginGAN and its baseline (classifier without the GAN):
 
-![Accuracy](further/images/performance.png)
+![Comparrison to baseline](further/images/no_improvement.png)
 
-The generator is clearly mode collapsed throughout training however:
+The generator of MarginGAN is clearly mode collapsed throughout training:
 
 ![Images](further/images/montage.jpeg)
+
+Below is a plt of the ema vs primary model performance for MarginGAN.
+
+![ema vs primary for margingan and baseline](further/images/ema_both.png)
+
+There is a big gap, and ema is helping a lot. For the baseline (classifier alone) there is no such gap, ema and primary are practically equal.
 
 ## Experiments
 
@@ -106,8 +113,8 @@ mkdir -p val/horse
 mkdir -p val/ship
 mkdir -p val/truck
 
-sh cp_cifar10_train.sh
-sh cp_cifar10_val.sh
+sh /MarginGAN/further/data-local/bin/cp_cifar10_train.sh
+sh /MarginGAN/further/data-local/bin/cp_cifar10_val.sh
 ```
 
 ### how to run

@@ -94,6 +94,8 @@ def create_parser():
                         help='path to save checkpoints without trailing slash (default: .)')
     parser.add_argument('--datadir', default=None, type=str, metavar='PATH',
                         help='override path to read data from (default: None)')
+    parser.add_argument('--baseline', dest='baseline', action='store_true',
+                        help='If included train the classifier alone without training D or G.')
     return parser
 
 

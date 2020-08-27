@@ -309,8 +309,9 @@ def train(train_loader, model, ema_model, optimizer, G, D, G_optimizer, D_optimi
     # switch to train mode
     model.train()
     ema_model.train()
-    D.train()
-    G.train()
+    if not args.baseline:
+        D.train()
+        G.train()
 
     end = time.time()
 
@@ -375,19 +376,22 @@ def train(train_loader, model, ema_model, optimizer, G, D, G_optimizer, D_optimi
             meters.update('cons_loss', 0)
 
 
-        z_ = torch.rand((args.generated_batch_size, args.z_dim))
-        z_ = z_.cuda()
-        G_ = G(z_)
-
-        C_fake_pred, _ = model(G_)
-
-        C_fake_pred = F.softmax(C_fake_pred, dim=1)
-        with torch.no_grad():
-            C_fake_wei = torch.max(C_fake_pred, 1)[1]
-            C_fake_wei = C_fake_wei.view(-1, 1)
-            C_fake_wei = torch.zeros(args.generated_batch_size, 10).cuda().scatter_(1, C_fake_wei, 1)
-
-        C_fake_loss = nll_loss_neg(C_fake_pred, C_fake_wei)
+        if not args.baseline:
+            z_ = torch.rand((args.generated_batch_size, args.z_dim))
+            z_ = z_.cuda()
+            G_ = G(z_)
+    
+            C_fake_pred, _ = model(G_)
+    
+            C_fake_pred = F.softmax(C_fake_pred, dim=1)
+            with torch.no_grad():
+                C_fake_wei = torch.max(C_fake_pred, 1)[1]
+                C_fake_wei = C_fake_wei.view(-1, 1)
+                C_fake_wei = torch.zeros(args.generated_batch_size, 10).cuda().scatter_(1, C_fake_wei, 1)
+    
+            C_fake_loss = nll_loss_neg(C_fake_pred, C_fake_wei)
+        else:
+            C_fake_loss = 0
 
         loss = class_loss + consistency_loss + res_loss + generated_weight(epoch) * C_fake_loss
 
@@ -428,52 +432,52 @@ def train(train_loader, model, ema_model, optimizer, G, D, G_optimizer, D_optimi
                 'Prec@5 {meters[top5]:.3f}'.format(
                     epoch, i, len(train_loader), meters=meters))
 
+        if not args.baseline:
+            # update D network
+            D_optimizer.zero_grad()
+    
+            D_real = D(input_var)
+            D_real_loss = BCEloss(D_real, torch.ones_like(D_real))
+    
+            G_ = G(z_)
+            D_fake = D(G_)
+    
+            D_fake_loss = BCEloss(D_fake, torch.zeros_like(D_fake))
+    
+            D_loss = D_real_loss + D_fake_loss
+    
+            D_loss.backward()
+            D_optimizer.step()
+    
+            # update G network
+            G_optimizer.zero_grad()
+    
+            G_ = G(z_)
+    
+            D_fake = D(G_)
+            G_loss_D = BCEloss(D_fake, torch.ones_like(D_fake))
+    
+            C_fake_pred, _ = model(G_)
+            C_fake_pred = F.log_softmax(C_fake_pred, dim=1)
+            with torch.no_grad():
+                C_fake_wei = torch.max(C_fake_pred, 1)[1]
+            G_loss_C = F.nll_loss(C_fake_pred, C_fake_wei)
+    
+            G_loss = G_loss_D + generated_weight(epoch) * G_loss_C
+            if epoch <= 10:
+                G_loss_D.backward()
+            else:
+                G_loss_D.backward(retain_graph=True)
+                G_loss_C.backward()
+    
+            G_optimizer.step()
 
-        # update D network
-        D_optimizer.zero_grad()
-
-        D_real = D(input_var)
-        D_real_loss = BCEloss(D_real, torch.ones_like(D_real))
-
-        G_ = G(z_)
-        D_fake = D(G_)
-
-        D_fake_loss = BCEloss(D_fake, torch.zeros_like(D_fake))
-
-        D_loss = D_real_loss + D_fake_loss
-
-        D_loss.backward()
-        D_optimizer.step()
-
-        # update G network
-        G_optimizer.zero_grad()
-
-        G_ = G(z_)
-
-        D_fake = D(G_)
-        G_loss_D = BCEloss(D_fake, torch.ones_like(D_fake))
-
-        C_fake_pred, _ = model(G_)
-        C_fake_pred = F.log_softmax(C_fake_pred, dim=1)
-        with torch.no_grad():
-            C_fake_wei = torch.max(C_fake_pred, 1)[1]
-        G_loss_C = F.nll_loss(C_fake_pred, C_fake_wei)
-
-        G_loss = G_loss_D + generated_weight(epoch) * G_loss_C
-        if epoch <= 10:
-            G_loss_D.backward()
-        else:
-            G_loss_D.backward(retain_graph=True)
-            G_loss_C.backward()
-
-        G_optimizer.step()
-
-        if i % args.print_freq == 0:
-            print("Epoch: [%2d] [%4d/%4d] D_loss: %.8f, G_loss: %.8f" %
-                  (
-                      epoch, i, len(train_loader),
-                      D_loss.item(),
-                      G_loss.item()))
+            if i % args.print_freq == 0:
+                print("Epoch: [%2d] [%4d/%4d] D_loss: %.8f, G_loss: %.8f" %
+                      (
+                          epoch, i, len(train_loader),
+                          D_loss.item(),
+                          G_loss.item()))
 
 
 
